@@ -24,34 +24,31 @@ Population::Population(int n, double a, double b, int size,
 }
 
 Population::~Population() {
-    for (int i = 0; i < size; i++) {
-        delete (*p)[i];
-    }
-    delete p;
+    this->clear(); 
 }
 
 void Population::sort(vector<Phenotype*> *p) {
     bool sorted = true;
-    for (int i = 0; i < size - 1; i++) {
-        if ((*p)[i]->fitness() > (*p)[i+1]->fitness()) {
+    for (int i = 0; i < p->size() - 1; i++) {
+        if (p->at(i)->fitness() > p->at(i+1)->fitness()) {
             sorted = false;
             break;
         }
     }
     if (sorted) return;
 
-    for (int i = 0; i < size; i++) {
-        Phenotype* best = (*p)[i]; 
+    for (int i = 0; i < p->size(); i++) {
+        Phenotype* best = p->at(i); 
         int best_i = i;
         
-        for (int j = i + 1; j < size; j++) {
-            if((*p)[j]->fitness() < best->fitness()) {
-                best = (*p)[j]; best_i = j;
+        for (int j = i + 1; j < p->size(); j++) {
+            if(p->at(j)->fitness() < best->fitness()) {
+                best = p->at(j); best_i = j;
             }
         }
         
-        (*p)[best_i] = (*p)[i];
-        (*p)[i] = best;
+        p->at(best_i) = p->at(i);
+        p->at(i) = best;
     }
 }
 
@@ -66,13 +63,13 @@ set<Phenotype*> * Population::elitism() {
     return result;
 }
 
-// assuming k < size of population
 set<Phenotype*> * Population::take (int k) {
     set<Phenotype*> *result = new set<Phenotype*> ();
+
     int ind[k];
 
     for (int i = 0; i < k; i++) {
-        int index = rand() % (k - i);
+        int index = rand() % (p->size() - i);
         for (int j = 0; j < i; j++) {
             if (index >= ind[j]) index++;
         }
@@ -80,7 +77,7 @@ set<Phenotype*> * Population::take (int k) {
     }
 
     for (int i = 0; i < k; i++) {
-        result->insert((*p)[ind[i]]);
+        result->insert(p->at(ind[i]));
     }
 
     return result;
@@ -89,7 +86,7 @@ set<Phenotype*> * Population::take (int k) {
 set<Phenotype*> * Population::tournament() {
     set<Phenotype*> *result = new set<Phenotype*> ();
 
-    for (int i = 0; i < size; i++) {
+    for (int i = 0; i < p->size(); i++) {
         set<Phenotype*> *g = take(this->t);
         auto candidate = g->begin(); // *candidate is of type Phenotype*
         Phenotype* best = *candidate;
@@ -112,16 +109,28 @@ set<Phenotype*> * Population::select() {
     elite->insert(champions->begin(), champions->end());
     delete champions; 
 
+    vector<Phenotype*> v(elite->size());
+    v.assign(elite->begin(), elite->end());
+    elite->clear();
+    sort(&v);
+    for (int i = size; i < v.size(); i++) {
+        delete v[i];
+    }
+    v.erase(v.begin() + size, v.end());
+
+    for (auto ph : v) {
+        elite->insert(ph);
+    }
+
     return elite;
 }
 
 vector<Phenotype*> * Population::reproduce(set<Phenotype*> *parents) {
-    vector<Phenotype*> *children((parents->size()) * (parents->size()));
+    vector<Phenotype*> *children = new vector<Phenotype*> (parents->size() * parents->size());
     int i = 0;
     for (auto mother : *parents) {
         for (auto father : *parents) {
-            Phenotype* kid = new Phenotype(mother, father);
-            children[i] = kid;
+            children->at(i) = new Phenotype(mother, father);
             i++;
         }
     }
@@ -131,35 +140,40 @@ vector<Phenotype*> * Population::reproduce(set<Phenotype*> *parents) {
 }
 
 void Population::clear() {
-    for (auto parent : *p) {
-        delete parent;
+    for (auto ph : *p) {
+        delete ph;
     }
     delete p;
 }
 
 void Population::evolve() {
     vector<Phenotype*> *children = reproduce(select());
-  
+
+    show_population();
     this->clear();
    
     for (auto kid : *children) {
         if (random_between(0,1) <= mutation_rate) kid->mutate();
     }
     p = children;
+    show_population();
 
     set<Phenotype*> *selected = select();
 
     for (auto phen : *selected) {
         remove(p->begin(), p->end(), phen);
     }
+    show_population();
     this->clear();
+    
 
     p = new vector<Phenotype*>();
     p->assign(selected->begin(), selected->end());
+    
 }
 
 void Population::show_population() {
-    for (int i = 0; i < size; i++) {
+    for (int i = 0; i < p->size(); i++) {
         cout << i << ": "<< std::setprecision(2) << std::fixed;
         for (int j = 0; j < (*p)[i]->data().size(); j++) {
             cout << (*p)[i]->data()[j] << " ";
