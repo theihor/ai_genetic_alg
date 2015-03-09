@@ -2,12 +2,15 @@ import System.Random
 import Data.List
 import qualified Data.Set as Set
 
+numberOfGenes :: Int
 numberOfGenes = 12  
 lowerLimit = -5.0
 upperLimit = 5.0
 
+populationSize :: Int
 populationSize = numberOfGenes * 10
 
+eliteRate :: Double
 eliteRate = 0.15
 tournamentT = 2
 
@@ -42,7 +45,7 @@ fitnessBetter lst1 lst2
     where f1 = fitness(lst1)
           f2 = fitness(lst2)
 
-eliteN = round $ populationSize * eliteRate
+eliteN = round $ (fromIntegral populationSize) * eliteRate
 elitism :: [[Double]] -> ([[Double]], [[Double]])
 elitism lst = splitAt eliteN $ sortBy fitnessBetter lst -- returns (elite, notElite)
 
@@ -86,4 +89,3 @@ reproduce lst gen =
     let pairs = [ (m, f) | m <- lst, f <- lst, m /= f ]
     in map (\((m, f), g) -> crossover m f g) $ zip pairs $ genList gen
 
-mutate p g = 
