@@ -2,7 +2,7 @@ import System.Random
 import Data.List
 import qualified Data.Set as Set
 
-numberOfGenes = 5
+numberOfGenes = 12  
 lowerLimit = -5.0
 upperLimit = 5.0
 
@@ -35,8 +35,8 @@ fitnessBetter lst1 lst2
           f2 = fitness(lst2)
 
 eliteN = round $ populationSize * eliteRate
-elite :: [[Double]] -> [[Double]]
-elite lst = take eliteN $ sortBy fitnessBetter lst
+elitism :: [[Double]] -> ([[Double]], [[Double]])
+elitism lst = splitAt eliteN $ sortBy fitnessBetter lst -- returns (elite, notElite)
 
 removeAt :: Int -> [a] -> [a]
 removeAt i lst = 
@@ -59,5 +59,23 @@ tournament' k lst g =
 removeDuplicates lst = Set.toList $ Set.fromList lst
 
 tournament lst g = removeDuplicates $ tournament' (length lst) lst g
+
+crossover :: [Double] -> [Double] -> StdGen -> [Double]
+crossover father mother g =
+    let (i, g1) = randomR (0, (length father) - 1) g
+        (j, _) = randomR (i, (length father) - 1) g1
+    in (take i father) ++ take (j - i) (drop i mother) ++ (drop j father)
+
+select :: [[Double]] -> StdGen -> [[Double]]
+select lst g = 
+    let (elite, rest) = elitism lst
+        champions = tournament rest g
+    in elite ++ champions
+
+genList g = (\(_, g') -> g' : genList g') (random g :: (Int, StdGen))
+
+reproduce lst gen = 
+    let pairs = [ (m, f) | m <- lst, f <- lst, m /= f ]
+    in map (\((m, f), g) -> crossover m f g) $ zip pairs $ genList gen
 
 
