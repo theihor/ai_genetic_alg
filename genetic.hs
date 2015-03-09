@@ -6,10 +6,18 @@ numberOfGenes = 12
 lowerLimit = -5.0
 upperLimit = 5.0
 
-populationSize = 10
+populationSize = numberOfGenes * 10
 
 eliteRate = 0.15
 tournamentT = 2
+
+maxEpoch = 1000
+
+mutationPower :: Double -> Double
+mutationPower i = 1.0 / (i / maxEpoch + 1.0) - 0.5 -- i is epoch counter  
+
+mutationWidth :: Double -> Double
+mutationWidth i = maxEpoch - i 
 
 hypersphere :: [Double] -> Double 
 hypersphere lst = sum [x * x | x <- lst] 
@@ -70,7 +78,7 @@ select :: [[Double]] -> StdGen -> [[Double]]
 select lst g = 
     let (elite, rest) = elitism lst
         champions = tournament rest g
-    in elite ++ champions
+    in take populationSize $ sortBy fitnessBetter (elite ++ champions)
 
 genList g = (\(_, g') -> g' : genList g') (random g :: (Int, StdGen))
 
@@ -78,4 +86,4 @@ reproduce lst gen =
     let pairs = [ (m, f) | m <- lst, f <- lst, m /= f ]
     in map (\((m, f), g) -> crossover m f g) $ zip pairs $ genList gen
 
-
+mutate p g = 
