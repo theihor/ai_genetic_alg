@@ -1,2 +1,2 @@
 all:
-	g++ Phenotype.cpp Population.cpp main.cpp --std=c++0x 
+	ghc genetic.hs
