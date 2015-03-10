@@ -2,6 +2,8 @@ import System.Random
 import Data.List
 import qualified Data.Set as Set
 
+epsilon = 1e-16
+
 numberOfGenes :: Int
 numberOfGenes = 12  
 lowerLimit = -5.0
@@ -14,13 +16,16 @@ eliteRate :: Double
 eliteRate = 0.15
 tournamentT = 2
 
-maxEpoch = 1000
+maxEpoch :: Int
+maxEpoch = round $ 2.0 * (fromIntegral numberOfGenes) * (log ((upperLimit - lowerLimit) / epsilon))
 
-mutationPower :: Double -> Double
-mutationPower i = 1.0 / (i / maxEpoch + 1.0) - 0.5 -- i is epoch counter  
+mutationDepth :: Double -> Double
+mutationDepth i = c / (c + i ** 6) where c = fromIntegral maxEpoch  -- i is epoch counter  
 
-mutationWidth :: Double -> Double
-mutationWidth i = maxEpoch - i 
+mutationWidth :: Int -> Int
+mutationWidth i = (c - i) * n `div` (c + 1) + 1 
+    where c = maxEpoch
+          n = numberOfGenes
 
 hypersphere :: [Double] -> Double 
 hypersphere lst = sum [x * x | x <- lst] 
@@ -45,6 +50,8 @@ fitnessBetter lst1 lst2
     where f1 = fitness(lst1)
           f2 = fitness(lst2)
 
+newGen g = let (_, g') = random g :: (Int, StdGen) in g' 
+
 eliteN = round $ (fromIntegral populationSize) * eliteRate
 elitism :: [[Double]] -> ([[Double]], [[Double]])
 elitism lst = splitAt eliteN $ sortBy fitnessBetter lst -- returns (elite, notElite)
@@ -54,7 +61,7 @@ removeAt i lst =
     let (left, right) = splitAt i lst 
     in left ++ (drop 1 right)
 
-choose :: [[Double]] -> Int -> StdGen -> [[Double]]
+choose :: [a] -> Int -> StdGen -> [a]
 choose [] _ _ = []
 choose _ 0 _ = []
 choose lst n g = 
@@ -63,9 +70,8 @@ choose lst n g =
 
 tournament' :: Int -> [[Double]] -> StdGen -> [[Double]]
 tournament' 0 _ _ = []
-tournament' k lst g =
-    let (_, newG) = random g :: (Int, StdGen)
-    in (minimumBy fitnessBetter $ choose lst tournamentT newG) : tournament' (k - 1) lst newG 
+tournament' k lst g = (minimumBy fitnessBetter $ choose lst tournamentT newG) : tournament' (k - 1) lst newG 
+    where newG = newGen g
 
 removeDuplicates lst = Set.toList $ Set.fromList lst
 
@@ -88,4 +94,16 @@ genList g = (\(_, g') -> g' : genList g') (random g :: (Int, StdGen))
 reproduce lst gen = 
     let pairs = [ (m, f) | m <- lst, f <- lst, m /= f ]
     in map (\((m, f), g) -> crossover m f g) $ zip pairs $ genList gen
+
+applyMutation p [] = p
+applyMutation p (m:ms) = 
+    let (l, r) = splitAt (fst m) p
+    in applyMutation (l ++ [head r + snd m] ++ drop 1 r) ms
+
+mutate :: Int -> [Double] -> StdGen -> [Double]
+mutate i p g = let (n, g') = randomR (1, mutationWidth i) g 
+                   genes = choose [0..numberOfGenes-1] n g'
+                   mutationMax = 0.5 * (mutationDepth $ fromIntegral i) * (upperLimit - lowerLimit)
+                   mutations = take n $ randomRs (-mutationMax, mutationMax) (newGen g')
+               in applyMutation p $ zip genes mutations 
 
