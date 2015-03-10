@@ -5,7 +5,7 @@ import qualified Data.Set as Set
 epsilon = 1e-16
 
 numberOfGenes :: Int
-numberOfGenes = 12  
+numberOfGenes = 5 
 lowerLimit = -5.0
 upperLimit = 5.0
 
@@ -20,7 +20,9 @@ maxEpoch :: Int
 maxEpoch = round $ 2.0 * (fromIntegral numberOfGenes) * (log ((upperLimit - lowerLimit) / epsilon))
 
 mutationDepth :: Double -> Double
-mutationDepth i = c / (c + i ** 6) where c = fromIntegral maxEpoch  -- i is epoch counter  
+mutationDepth i = c / (c + i ** k) -- i is epoch counter  
+    where c = fromIntegral maxEpoch
+          k = (logBase c (1 / epsilon - 1)) - 1
 
 mutationWidth :: Int -> Int
 mutationWidth i = (c - i) * n `div` (c + 1) + 1 
@@ -95,10 +97,16 @@ reproduce lst gen =
     let pairs = [ (m, f) | m <- lst, f <- lst, m /= f ]
     in map (\((m, f), g) -> crossover m f g) $ zip pairs $ genList gen
 
+limitedAdd x y = 
+    let res = x + y
+    in if res > upperLimit then upperLimit
+       else if res < lowerLimit then lowerLimit
+           else res
+
 applyMutation p [] = p
 applyMutation p (m:ms) = 
     let (l, r) = splitAt (fst m) p
-    in applyMutation (l ++ [head r + snd m] ++ drop 1 r) ms
+    in applyMutation (l ++ [limitedAdd (head r) (snd m)] ++ drop 1 r) ms
 
 mutate :: Int -> [Double] -> StdGen -> [Double]
 mutate i p g = let (n, g') = randomR (1, mutationWidth i) g 
@@ -109,6 +117,21 @@ mutate i p g = let (n, g') = randomR (1, mutationWidth i) g
 
 evolve i lst g 
     | i >= maxEpoch = lst
-    | otherwise
-        lst
+    | otherwise = let parents = select lst g
+                      children = map (\(g', kid) -> mutate i kid g') $ zip (genList g) $ reproduce parents g
+                  in select children (newGen g)
+        
+bestSolution lst = minimumBy fitnessBetter lst 
+
+evolution :: Int -> [[Double]] -> StdGen -> IO ()
+evolution i lst g = do
+    if i < maxEpoch then do
+        let generation = evolve i lst g
+        putStrLn $ (show i) ++ ": " ++ (show $ fitness $ bestSolution generation)
+        evolution (i + 1) generation (newGen g)
+    else print "Done."
+
+main = do
+    g <- newStdGen
+    evolution 0 (genPhenotypes populationSize g) g 
     
