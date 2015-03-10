@@ -107,3 +107,8 @@ mutate i p g = let (n, g') = randomR (1, mutationWidth i) g
                    mutations = take n $ randomRs (-mutationMax, mutationMax) (newGen g')
                in applyMutation p $ zip genes mutations 
 
+evolve i lst g 
+    | i >= maxEpoch = lst
+    | otherwise
+        lst
+    
