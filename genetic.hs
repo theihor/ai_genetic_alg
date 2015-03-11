@@ -1,16 +1,17 @@
 import System.Random
 import Data.List
+import Data.Ord
 import qualified Data.Set as Set
 
 epsilon = 1e-16
 
 numberOfGenes :: Int
-numberOfGenes = 5 
+numberOfGenes = 12 
 lowerLimit = -5.0
 upperLimit = 5.0
 
 populationSize :: Int
-populationSize = numberOfGenes * 10
+populationSize = numberOfGenes * numberOfGenes 
 
 eliteRate :: Double
 eliteRate = 0.15
@@ -22,7 +23,7 @@ maxEpoch = round $ 2.0 * (fromIntegral numberOfGenes) * (log ((upperLimit - lowe
 mutationDepth :: Double -> Double
 mutationDepth i = c / (c + i ** k) -- i is epoch counter  
     where c = fromIntegral maxEpoch
-          k = (logBase c (1 / epsilon - 1)) - 1
+          k = (logBase c (1 / epsilon - 1))  
 
 mutationWidth :: Int -> Int
 mutationWidth i = (c - i) * n `div` (c + 1) + 1 
@@ -41,6 +42,11 @@ take' n lst =
     let (one, rest) = splitAt numberOfGenes lst
     in one : take' (n - 1) rest
 
+removeAt :: Int -> [a] -> [a]
+removeAt i lst = 
+    let (left, right) = splitAt i lst 
+    in left ++ (drop 1 right)
+
 genPhenotypes :: Int -> StdGen -> [[Double]]
 genPhenotypes n g = take' n $ randomRs (lowerLimit, upperLimit) g
 
@@ -52,16 +58,23 @@ fitnessBetter lst1 lst2
     where f1 = fitness(lst1)
           f2 = fitness(lst2)
 
+takeBest' :: Int -> [(([Double], Double), Int)] -> [(([Double], Double), Int)]
+takeBest' 0 _ = []
+takeBest' _ [] = []
+takeBest' n lst = 
+    let (best, i) = minimumBy (comparing (\((_, f), _) -> f)) lst
+    in (best, i) : (takeBest' (n - 1) $ removeAt i lst)
+
+takeBest :: Int -> [[Double]] -> [[Double]]
+takeBest 0 _ = []
+takeBest _ [] = []
+takeBest n lst = map (\((p, _), _) -> p) $ takeBest' n $ zip (zip lst (map fitness lst)) [0..]
+
 newGen g = let (_, g') = random g :: (Int, StdGen) in g' 
 
 eliteN = round $ (fromIntegral populationSize) * eliteRate
-elitism :: [[Double]] -> ([[Double]], [[Double]])
-elitism lst = splitAt eliteN $ sortBy fitnessBetter lst -- returns (elite, notElite)
-
-removeAt :: Int -> [a] -> [a]
-removeAt i lst = 
-    let (left, right) = splitAt i lst 
-    in left ++ (drop 1 right)
+elitism :: [[Double]] -> [[Double]]
+elitism lst = takeBest eliteN lst
 
 choose :: [a] -> Int -> StdGen -> [a]
 choose [] _ _ = []
@@ -84,12 +97,6 @@ crossover father mother g =
     let (i, g1) = randomR (0, (length father) - 1) g
         (j, _) = randomR (i, (length father) - 1) g1
     in (take i father) ++ take (j - i) (drop i mother) ++ (drop j father)
-
-select :: [[Double]] -> StdGen -> [[Double]]
-select lst g = 
-    let (elite, rest) = elitism lst
-        champions = tournament rest g
-    in take populationSize $ sortBy fitnessBetter (elite ++ champions)
 
 genList g = (\(_, g') -> g' : genList g') (random g :: (Int, StdGen))
 
@@ -117,9 +124,11 @@ mutate i p g = let (n, g') = randomR (1, mutationWidth i) g
 
 evolve i lst g 
     | i >= maxEpoch = lst
-    | otherwise = let parents = select lst g
-                      children = map (\(g', kid) -> mutate i kid g') $ zip (genList g) $ reproduce parents g
-                  in select children (newGen g)
+    | otherwise = let elite = elitism lst
+                      champions = tournament (filter (\p -> elem p elite) lst) g
+                      parents = elite ++ champions
+                      children = (map (\(g', kid) -> mutate i kid g') $ zip (genList g) $ reproduce parents g)
+                  in takeBest populationSize children
         
 bestSolution lst = minimumBy fitnessBetter lst 
 
