@@ -18,20 +18,23 @@ eliteRate = 0.15
 tournamentT = 2
 
 maxEpoch :: Int
-maxEpoch = round $ 2.0 * (fromIntegral numberOfGenes) * (log ((upperLimit - lowerLimit) / epsilon))
+maxEpoch = 200 --round $ 2.0 * (fromIntegral numberOfGenes) * (log ((upperLimit - lowerLimit) / epsilon))
 
 mutationDepth :: Double -> Double
-mutationDepth i = c / (c + i ** k) -- i is epoch counter  
+mutationDepth i =  ((c - i) / c) ** fromIntegral numberOfGenes -- c / (c + i ** k) -- i is epoch counter  
     where c = fromIntegral maxEpoch
-          k = (logBase c (1 / epsilon - 1))  
+         -- k = (logBase c (1 / epsilon - 1)) - 1.7 
 
 mutationWidth :: Int -> Int
-mutationWidth i = (c - i) * n `div` (c + 1) + 1 
+mutationWidth i = ((c - i) * n `div` (c + 1)) + 1 
     where c = maxEpoch
           n = numberOfGenes
 
 hypersphere :: [Double] -> Double 
 hypersphere lst = sum [x * x | x <- lst] 
+
+griewank :: [Double] -> Double
+griewank lst = 1.0 + ((1.0 / 4000) * sum [x * x | x <- lst]) - product [ cos (x / (sqrt i)) | (x, i) <- zip lst [1..]]
 
 fitness :: [Double] -> Double
 fitness lst = hypersphere lst
@@ -85,6 +88,7 @@ choose lst n g =
 
 tournament' :: Int -> [[Double]] -> StdGen -> [[Double]]
 tournament' 0 _ _ = []
+tournament' _ [] _ = []
 tournament' k lst g = (minimumBy fitnessBetter $ choose lst tournamentT newG) : tournament' (k - 1) lst newG 
     where newG = newGen g
 
@@ -127,16 +131,22 @@ evolve i lst g
     | otherwise = let elite = elitism lst
                       champions = tournament (filter (\p -> elem p elite) lst) g
                       parents = elite ++ champions
-                      children = (map (\(g', kid) -> mutate i kid g') $ zip (genList g) $ reproduce parents g)
+                      children = elite ++ (map (\(g', kid) -> mutate i kid g') $ zip (genList g) $ reproduce parents g)
                   in takeBest populationSize children
         
 bestSolution lst = minimumBy fitnessBetter lst 
 
 evolution :: Int -> [[Double]] -> StdGen -> IO ()
 evolution i lst g = do
-    if i < maxEpoch then do
+    if i <= maxEpoch then do
         let generation = evolve i lst g
-        putStrLn $ (show i) ++ ": " ++ (show $ fitness $ bestSolution generation)
+        if i `mod` (maxEpoch `div` 10) == 0 then
+            putStrLn $ (show i) ++ ": " ++ (show $ fitness $ bestSolution generation) ++ "\tmutation depth is " ++ (show $ mutationDepth $ fromIntegral i)
+        else return ()
+
+        if i == maxEpoch then print $ bestSolution generation
+        else return ()
+
         evolution (i + 1) generation (newGen g)
     else print "Done."
 
